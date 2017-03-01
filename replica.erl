@@ -18,31 +18,32 @@ next(Database, Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
       New_slot_out = Slot_out,
       New_proposals = Proposals,
       New_decisions = Decisions,
-      New_Request = Requests ++ [C];
+      New_Requests = Requests ++ [C];
 
     {decision, S, C} ->  % decision from commander
-      New_decisions = Decisions ++ [{S, C}];
-      {New_proposals, New_requests, New_slot_out} =
-        decide (Database, Slot_out, New_decisions, Proposals, Requests)
+      New_decisions = Decisions ++ [{S, C}],
+      {New_proposals, New_Requests, New_slot_out} =
+        decide(Database, Slot_out, New_decisions, Proposals, Requests)
   end,
 
-  {Final_slot_in, Final_requests, Final_proposals}
-    = propose(Leaders, Slot_in, New_slot_out, New_Request, New_proposals, New_decisions),
+  {Final_slot_in, Final_requests, Final_proposals} = propose_commands(
+    Leaders, Slot_in, New_slot_out, New_Requests, New_proposals, New_decisions),
 
-  next(Database, Leaders,
-       Final_slot_in, New_slot_out, Final_requests, Final_proposals, New_decisions).
+  next(Database, Leaders, Final_slot_in,
+       New_slot_out, Final_requests, Final_proposals, New_decisions).
 
 % PROPOSE commands for slots
-propose(Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
-  WINDOW = 5,
+propose_commands(Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
+  Window = 5,
   propose(Leaders, Slot_in,
           Requests, Proposals, Decisions, Slot_out + Window - Slot_in).
 
-propose(_, Slot_in, [], Proposals, _, _) -> {Slot_in, [], Proposals}.
-propose(_, Slot_in, Requests, Proposals, _,0) -> {Slot_in, Requests, Proposals}.
+propose(_, Slot_in, [], Proposals, _, _) -> {Slot_in, [], Proposals};
+propose(_, Slot_in, Requests, Proposals, _,0) -> {Slot_in, Requests, Proposals};
 propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
-  if
-    get_slot_command(Slot_in, Decisions) != none ->
+  case get_slot_command(Slot_in, Decisions) == none of
+
+    false ->
       New_proposals = Proposals ++ [{Slot_in, Command}],
       [ Leader ! {propose, {Slot_in, Command}} || Leader <- Leaders];
 
@@ -50,19 +51,19 @@ propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
       New_proposals = Proposals
   end,
 
-  propose(Leaders, Slot_in + 1, Requests, Proposals, Decisions, Count - 1).
+  propose(Leaders, Slot_in + 1, Requests, New_proposals, Decisions, Count - 1).
 
 % DECIDE and EXECUTES requests
-decide(Database, Slot_out, [], Proposals, Requests) ->
-  {Proposals, Requests, Slot_out}.
+decide(_, Slot_out, [], Proposals, Requests) ->
+  {Proposals, Requests, Slot_out};
 decide(Database, Slot_out, [{_, Command} | Decisions], Proposals, Requests) ->
   Command_executed = get_slot_command(Slot_out, Proposals),
   if
-    Command_executed != none ->
+    Command_executed /= none ->
       New_proposals = lists:delete({Slot_out, Command_executed}, Proposals),
 
       if
-        Command_executed != Command ->
+        Command_executed /= Command ->
           New_requests = Requests ++ [Command];
 
         true ->
@@ -79,10 +80,11 @@ decide(Database, Slot_out, [{_, Command} | Decisions], Proposals, Requests) ->
 
 % PERFORM operation on database
 perform(Database, Slot_out, Decisions, {K, Cid, Op}) ->
-  if
-    not has_been_executed(Decisions, Slot_out, {K, Cid, Op}) ->
+  case has_been_executed(Decisions, Slot_out, {K, Cid, Op}) of
+
+    false ->
       Database ! {execute, Op},
-      K ! {response, Cid, ok}
+      K ! {response, Cid, ok};
 
     true -> skip
   end,
@@ -90,15 +92,17 @@ perform(Database, Slot_out, Decisions, {K, Cid, Op}) ->
   Slot_out + 1.
 
 % Get the given Command for a specific slot
-get_slot_command(Slot, []) -> none;
-get_slot_command(Slot, [{Slot, Command} | Proposals]) -> Command;
+get_slot_command(_, []) -> none;
+get_slot_command(Slot, [{Slot, Command} | _]) -> Command;
 get_slot_command(Slot, [_ | Proposals]) -> get_slot_command(Slot, Proposals).
 
 % Check if a command already has been executed
-has_been_executed([], Slot_out, Command) -> false;
+has_been_executed([], _, _) -> false;
 has_been_executed([ {Slot, Command_executed} | Decisions ], Slot_out, Command) ->
   if
-    Slot < Slot_out and Command_executed == Command -> true,
+    (Slot < Slot_out) and (Command_executed == Command) ->
+      true;
 
-    true -> has_been_executed(Decisions, Slot_out, Command)
+    true ->
+      has_been_executed(Decisions, Slot_out, Command)
   end.

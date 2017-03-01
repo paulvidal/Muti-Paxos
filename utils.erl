@@ -6,7 +6,7 @@
 compare({Num1, LeaderId1}, {Num2, LeaderId2}) ->
   if
     Num1 > Num2 -> 1;
-    Num1 < Num 2 -> -1;
+    Num1 < Num2 -> -1;
     LeaderId1 > LeaderId2 -> 1;
     LeaderId1 < LeaderId2 -> -1;
     true -> 0

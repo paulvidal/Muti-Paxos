@@ -11,10 +11,11 @@ start(Leader, Acceptors, Ballot_number) ->
 next(Leader, Acceptors, Ballot_number, Wait_for, P_values) ->
   receive
     {p1b, Acceptor, Ballot, Accepted_values} ->
-      if
+      case compare(Ballot, Ballot_number) == 0 of
+
         % Case where Ballot == Ballot_number
-        compare(Ballot, Ballot_number) == 0 ->
-          New_p_values = P_Values ++ Accepted_values,
+        true ->
+          New_p_values = P_values ++ Accepted_values,
           New_wait_for = lists:delete(Acceptor, Wait_for),
 
           if
@@ -28,8 +29,8 @@ next(Leader, Acceptors, Ballot_number, Wait_for, P_values) ->
          next(Leader, Acceptors, Ballot_number, New_wait_for, New_p_values);
 
          % Case where Ballot != Ballot_number
-         true ->
+         false ->
            Leader ! {preempted, Ballot},
            exit(stop)
-      end,
+      end
   end.

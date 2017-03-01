@@ -8,12 +8,12 @@ start(Leader, Acceptors, Replicas, P_value) ->
   [ Acceptor ! {p2a, self(), P_value} || Acceptor <- Acceptors],
   next(Leader, Acceptors, Replicas, P_value, Acceptors).
 
-next(Leader, Acceptors, Replicas, {Ballot_number, Slot , Command}, Wait_for) ->
+next(Leader, Acceptors, Replicas, {Ballot_number, Slot, Command}, Wait_for) ->
   receive
     {p2b, Acceptor, Ballot} ->
-      if
+      case compare(Ballot, Ballot_number) == 0  of
         % Case where Ballot == Ballot_number
-        compare(Ballot, Ballot_number) == 0 ->
+        true ->
           New_wait_for = lists:delete(Acceptor, Wait_for),
 
           if
@@ -22,13 +22,14 @@ next(Leader, Acceptors, Replicas, {Ballot_number, Slot , Command}, Wait_for) ->
               exit(stop);
 
             true -> skip
-         end,
+          end,
 
-         next(Leader, Acceptors, Ballot_number, New_wait_for, New_p_values);
+          next(Leader, Acceptors, Replicas,
+               {Ballot_number, Slot, Command}, New_wait_for);
 
-         % Case where Ballot != Ballot_number
-         true ->
-           Leader ! {preempted, Ballot},
-           exit(stop)
-      end,
-  end
+        % Case where Ballot != Ballot_number
+        false ->
+          Leader ! {preempted, Ballot},
+          exit(stop)
+      end
+  end.
