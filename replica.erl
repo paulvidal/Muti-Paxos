@@ -14,16 +14,18 @@ start(Database) ->
 
 next(Database, Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
   receive
-    {request, C} ->      % request from client
+    {request, C} ->  % request from client
+      % io:format("Received request ~p for replica ~p~n", [C, self()]),
       New_slot_out = Slot_out,
       New_proposals = Proposals,
       New_decisions = Decisions,
       New_Requests = Requests ++ [C];
 
     {decision, S, C} ->  % decision from commander
+      io:format("Received decision ~p for slot ~p for replica ~p~n", [C, S, self()]),
       New_decisions = Decisions ++ [{S, C}],
       {New_proposals, New_Requests, New_slot_out} =
-        decide(Database, Slot_out, New_decisions, Proposals, Requests)
+        decide(Database, Slot_out, New_decisions, New_decisions, Proposals, Requests)
   end,
 
   {Final_slot_in, Final_requests, Final_proposals} = propose_commands(
@@ -32,7 +34,7 @@ next(Database, Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
   next(Database, Leaders, Final_slot_in,
        New_slot_out, Final_requests, Final_proposals, New_decisions).
 
-% PROPOSE commands for slots
+% PROPOSE commands for slots to the leaders
 propose_commands(Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
   Window = 5,
   propose(Leaders, Slot_in,
@@ -41,44 +43,57 @@ propose_commands(Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
 propose(_, Slot_in, [], Proposals, _, _) -> {Slot_in, [], Proposals};
 propose(_, Slot_in, Requests, Proposals, _,0) -> {Slot_in, Requests, Proposals};
 propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
+  % Check if the slot is available by checking if there is no command for that
+  % slot in the decision list
   case get_slot_command(Slot_in, Decisions) == none of
 
-    false ->
-      New_proposals = Proposals ++ [{Slot_in, Command}],
-      [ Leader ! {propose, {Slot_in, Command}} || Leader <- Leaders];
-
     true ->
+      % io:format("Proposing command ~p to leaders from replica ~p~n", [{Slot_in, Command}, self()]),
+      New_proposals = Proposals ++ [{Slot_in, Command}],
+      [ Leader ! {propose, Slot_in, Command} || Leader <- Leaders];
+
+    false ->
+      % io:format("Slot ~p occupied for replica ~p~n", [Slot_in, self()]),
       New_proposals = Proposals
   end,
 
   propose(Leaders, Slot_in + 1, Requests, New_proposals, Decisions, Count - 1).
 
-% DECIDE and EXECUTES requests
-decide(_, Slot_out, [], Proposals, Requests) ->
+% DECIDES which commands should be executed and executes them
+decide(_, Slot_out, [], _, Proposals, Requests) ->
   {Proposals, Requests, Slot_out};
-decide(Database, Slot_out, [{_, Command} | Decisions], Proposals, Requests) ->
-  Command_executed = get_slot_command(Slot_out, Proposals),
-  if
-    Command_executed /= none ->
-      New_proposals = lists:delete({Slot_out, Command_executed}, Proposals),
+decide(Database, Slot_out, [{Slot_out, Command} | Decisions], All_decisions, Proposals, Requests) ->
+  Proposed_command = get_slot_command(Slot_out, Proposals),
 
-      if
-        Command_executed /= Command ->
+  case Proposed_command /= none of
+
+    % Case where a command with Slot = Slot_out is in the Proposals list
+    true ->
+      New_proposals = lists:delete({Slot_out, Proposed_command}, Proposals),
+
+      % If command is different from one which is going to be executed,
+      % put it back in the Requests list, else ignore it
+      case  Proposed_command /= Command of
+        true ->
           New_requests = Requests ++ [Command];
 
-        true ->
+        false ->
           New_requests = Requests
       end;
 
-    true ->
+    % Case where no command with Slot = Slot_out in the Proposals list
+    false ->
       New_proposals = Proposals,
       New_requests = Requests
   end,
 
   New_slot_out = perform(Database, Slot_out, Decisions, Command),
-  decide(Database, New_slot_out, Decisions, New_proposals, New_requests).
+  decide(Database, New_slot_out, All_decisions, All_decisions, New_proposals, New_requests);
 
-% PERFORM operation on database
+decide(Database, Slot_out, [_ | Decisions], All_decisions, Proposals, Requests) ->
+  decide(Database, Slot_out, Decisions, All_decisions, Proposals, Requests).
+
+% PERFORM operation on database if action has not already executed
 perform(Database, Slot_out, Decisions, {K, Cid, Op}) ->
   case has_been_executed(Decisions, Slot_out, {K, Cid, Op}) of
 
@@ -91,7 +106,7 @@ perform(Database, Slot_out, Decisions, {K, Cid, Op}) ->
 
   Slot_out + 1.
 
-% Get the given Command for a specific slot
+% Get the given Command for a specific Slot from a list of pairs {Slot, Command}
 get_slot_command(_, []) -> none;
 get_slot_command(Slot, [{Slot, Command} | _]) -> Command;
 get_slot_command(Slot, [_ | Proposals]) -> get_slot_command(Slot, Proposals).

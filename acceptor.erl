@@ -5,7 +5,8 @@
 -export([start/0]).
 
 start() ->
-  next(0, []).
+  Starting_ballot_number = {-1, 0},
+  next(Starting_ballot_number, []).
 
 next(Ballot_number, Accepted) ->
 
@@ -21,7 +22,7 @@ next(Ballot_number, Accepted) ->
 
     {p2a, Leader, {Ballot, Slot, Command}} ->
       case compare(Ballot, Ballot_number) == 0 of
-        true -> New_accepted = Accepted ++ {Ballot, Slot, Command};
+        true -> New_accepted = Accepted ++ [{Ballot, Slot, Command}];
         false -> New_accepted = Accepted
       end,
 

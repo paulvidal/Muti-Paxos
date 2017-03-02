@@ -7,7 +7,9 @@
 start() ->
   receive
     {bind, Acceptors, Replicas} ->
-      next(Acceptors, Replicas, {0, self()}, false, [])
+      Ballot_number = {0, self()},
+      spawn(scout, start, [self(), Acceptors, Ballot_number]),
+      next(Acceptors, Replicas, Ballot_number, false, [])
   end.
 
 next(Acceptors, Replicas, Ballot_number, Active, Proposals) ->
@@ -16,16 +18,20 @@ next(Acceptors, Replicas, Ballot_number, Active, Proposals) ->
       case is_proposed(Slot, Proposals) of
 
         false ->
-          New_proposals = Proposals ++ {Slot, Command},
+          % io:format("Leader ~p recieved new proposal for Slot ~p ~n", [self(), Slot]),
+          New_proposals = Proposals ++ [{Slot, Command}],
 
           if
             Active ->
+              % io:format("Leader ~p creating commander for ~p ~n", [self(), {Ballot_number, Slot, Command}]),
               spawn(commander, start,
                 [self(), Acceptors, Replicas, {Ballot_number, Slot, Command}]);
+
             true -> skip
           end;
 
         true ->
+          % io:format("Leader ~p already has Slot ~p taken ~n", [self(), Slot]),
           New_proposals = Proposals
 
       end,
