@@ -18,12 +18,10 @@ next(Acceptors, Replicas, Ballot_number, Active, Proposals) ->
       case is_proposed(Slot, Proposals) of
 
         false ->
-          % io:format("Leader ~p recieved new proposal for Slot ~p ~n", [self(), Slot]),
           New_proposals = Proposals ++ [{Slot, Command}],
 
           if
             Active ->
-              % io:format("Leader ~p creating commander for ~p ~n", [self(), {Ballot_number, Slot, Command}]),
               spawn(commander, start,
                 [self(), Acceptors, Replicas, {Ballot_number, Slot, Command}]);
 
@@ -31,7 +29,6 @@ next(Acceptors, Replicas, Ballot_number, Active, Proposals) ->
           end;
 
         true ->
-          % io:format("Leader ~p already has Slot ~p taken ~n", [self(), Slot]),
           New_proposals = Proposals
 
       end,
@@ -54,7 +51,7 @@ next(Acceptors, Replicas, Ballot_number, Active, Proposals) ->
           New_active = false,
           {Num, _} = Ballot,
           New_ballot_number = {Num + 1, self()},
-          spawn(scout, start, [self(), Acceptors, Ballot_number]);
+          spawn(scout, start, [self(), Acceptors, New_ballot_number]);
 
         false ->
           New_ballot_number = Ballot_number,
@@ -71,11 +68,11 @@ is_proposed(Slot, [_ | Proposals]) -> is_proposed(Slot, Proposals).
 
 % Determine for each slot the command corresponding the maximum ballot
 p_max(P_values) -> p_max(P_values, maps:new()).
-p_max([], Max_ballot_for_slots) -> maps:to_list(Max_ballot_for_slots);
+p_max([], Max_ballot_for_slots) -> [{Slot, Command} || {_, Slot, Command} <- maps:to_list(Max_ballot_for_slots)];
 p_max([{Ballot, Slot, Command} | P_values], Max_ballot_for_slots) ->
-  {Current_max_ballot, _, _} = maps:get(Slot, Max_ballot_for_slots),
+  {Current_max_ballot, _, _} = maps:get(Slot, Max_ballot_for_slots, {{-1, -1}, 0, 0}),
 
-  case Current_max_ballot < Ballot of
+  case compare(Ballot, Current_max_ballot) > 0 of
 
     true ->
       New_max_ballot_for_slots

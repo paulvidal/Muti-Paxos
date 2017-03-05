@@ -1,3 +1,4 @@
+%%% Paul Vidal (pv14) and Saturnin Pugnet (sp5414)
 
 %%% distributed algorithms, n.dulay 27 feb 17
 %%% coursework 2, paxos made moderately complex

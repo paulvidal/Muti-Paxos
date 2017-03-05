@@ -15,14 +15,12 @@ start(Database) ->
 next(Database, Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
   receive
     {request, C} ->  % request from client
-      % io:format("Received request ~p for replica ~p~n", [C, self()]),
       New_slot_out = Slot_out,
       New_proposals = Proposals,
       New_decisions = Decisions,
       New_Requests = Requests ++ [C];
 
     {decision, S, C} ->  % decision from commander
-      io:format("Received decision ~p for slot ~p for replica ~p~n", [C, S, self()]),
       New_decisions = Decisions ++ [{S, C}],
       {New_proposals, New_Requests, New_slot_out} =
         decide(Database, Slot_out, New_decisions, New_decisions, Proposals, Requests)
@@ -48,12 +46,10 @@ propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
   case get_slot_command(Slot_in, Decisions) == none of
 
     true ->
-      % io:format("Proposing command ~p to leaders from replica ~p~n", [{Slot_in, Command}, self()]),
       New_proposals = Proposals ++ [{Slot_in, Command}],
       [ Leader ! {propose, Slot_in, Command} || Leader <- Leaders];
 
     false ->
-      % io:format("Slot ~p occupied for replica ~p~n", [Slot_in, self()]),
       New_proposals = Proposals
   end,
 
@@ -62,7 +58,7 @@ propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
 % DECIDES which commands should be executed and executes them
 decide(_, Slot_out, [], _, Proposals, Requests) ->
   {Proposals, Requests, Slot_out};
-decide(Database, Slot_out, [{Slot_out, Command} | Decisions], All_decisions, Proposals, Requests) ->
+decide(Database, Slot_out, [{Slot_out, Command} | _], All_decisions, Proposals, Requests) ->
   Proposed_command = get_slot_command(Slot_out, Proposals),
 
   case Proposed_command /= none of
@@ -87,7 +83,7 @@ decide(Database, Slot_out, [{Slot_out, Command} | Decisions], All_decisions, Pro
       New_requests = Requests
   end,
 
-  New_slot_out = perform(Database, Slot_out, Decisions, Command),
+  New_slot_out = perform(Database, Slot_out, lists:delete({Slot_out, Command}, All_decisions), Command),
   decide(Database, New_slot_out, All_decisions, All_decisions, New_proposals, New_requests);
 
 decide(Database, Slot_out, [_ | Decisions], All_decisions, Proposals, Requests) ->
@@ -114,6 +110,7 @@ get_slot_command(Slot, [_ | Proposals]) -> get_slot_command(Slot, Proposals).
 % Check if a command already has been executed
 has_been_executed([], _, _) -> false;
 has_been_executed([ {Slot, Command_executed} | Decisions ], Slot_out, Command) ->
+
   if
     (Slot < Slot_out) and (Command_executed == Command) ->
       true;

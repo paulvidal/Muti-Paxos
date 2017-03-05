@@ -18,20 +18,17 @@ start(N_accounts, End_after) ->
                       [N, maps:get(N, Balances2), self()])
              || N <- lists:seq(1, N_accounts) ],
   io:format("Transactions ~p~n~s~n", [Transactions, lists:flatten(Output)]),
-  io:format("Terminating Program~n"),
 
   done.
 
 next(Balances, Transactions) ->
   receive
   {execute, {move, Amount, Account1, Account2}} ->
-    % io:format("Moving ~p from ~p to ~p~n", [Amount, Account1, Account2]),
     Increment1 = maps:get(Account1, Balances) + Amount,
     Balances2  = Balances#{Account1 := Increment1},
     Decrement2 = maps:get(Account2, Balances2) - Amount,
     Balances3  = Balances2#{Account2 := Decrement2},
     next(Balances3, Transactions+1);
   finish ->
-    io:format("Finish Program~n"),
     {Balances, Transactions}
   end.

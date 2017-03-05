@@ -9,7 +9,6 @@ start() ->
   next(Starting_ballot_number, []).
 
 next(Ballot_number, Accepted) ->
-
   receive
     {p1a, Leader, Ballot} ->
       case compare(Ballot, Ballot_number) > 0 of
@@ -21,6 +20,7 @@ next(Ballot_number, Accepted) ->
       next(New_ballot_number, Accepted);
 
     {p2a, Leader, {Ballot, Slot, Command}} ->
+      % io:format("~p ~n", [{Ballot, Slot, Command}]),
       case compare(Ballot, Ballot_number) == 0 of
         true -> New_accepted = Accepted ++ [{Ballot, Slot, Command}];
         false -> New_accepted = Accepted
