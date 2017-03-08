@@ -68,9 +68,11 @@ is_proposed(Slot, [_ | Proposals]) -> is_proposed(Slot, Proposals).
 
 % Determine for each slot the command corresponding the maximum ballot
 p_max(P_values) -> p_max(P_values, maps:new()).
-p_max([], Max_ballot_for_slots) -> [{Slot, Command} || {_, Slot, Command} <- maps:to_list(Max_ballot_for_slots)];
+p_max([], Max_ballot_for_slots) ->
+  [{Slot, Command} || {_, Slot, Command} <- maps:to_list(Max_ballot_for_slots)];
 p_max([{Ballot, Slot, Command} | P_values], Max_ballot_for_slots) ->
-  {Current_max_ballot, _, _} = maps:get(Slot, Max_ballot_for_slots, {{-1, -1}, 0, 0}),
+  {Current_max_ballot, _, _}
+    = maps:get(Slot, Max_ballot_for_slots, {{-1, -1}, 0, 0}),
 
   case compare(Ballot, Current_max_ballot) > 0 of
 

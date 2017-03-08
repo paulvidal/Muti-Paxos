@@ -23,7 +23,8 @@ next(Database, Leaders, Slot_in, Slot_out, Requests, Proposals, Decisions) ->
     {decision, S, C} ->  % decision from commander
       New_decisions = Decisions ++ [{S, C}],
       {New_proposals, New_Requests, New_slot_out} =
-        decide(Database, Slot_out, New_decisions, New_decisions, Proposals, Requests)
+        decide(Database, Slot_out, New_decisions, New_decisions,
+               Proposals, Requests)
   end,
 
   {Final_slot_in, Final_requests, Final_proposals} = propose_commands(
@@ -58,7 +59,9 @@ propose(Leaders, Slot_in, [Command | Requests], Proposals, Decisions, Count) ->
 % DECIDES which commands should be executed and executes them
 decide(_, Slot_out, [], _, Proposals, Requests) ->
   {Proposals, Requests, Slot_out};
-decide(Database, Slot_out, [{Slot_out, Command} | _], All_decisions, Proposals, Requests) ->
+decide(Database, Slot_out, [{Slot_out, Command} | _], All_decisions,
+  Proposals, Requests) ->
+
   Proposed_command = get_slot_command(Slot_out, Proposals),
 
   case Proposed_command /= none of
@@ -83,10 +86,13 @@ decide(Database, Slot_out, [{Slot_out, Command} | _], All_decisions, Proposals, 
       New_requests = Requests
   end,
 
-  New_slot_out = perform(Database, Slot_out, lists:delete({Slot_out, Command}, All_decisions), Command),
-  decide(Database, New_slot_out, All_decisions, All_decisions, New_proposals, New_requests);
+  New_slot_out = perform(Database, Slot_out,
+    lists:delete({Slot_out, Command}, All_decisions), Command),
+  decide(Database, New_slot_out, All_decisions, All_decisions,
+    New_proposals, New_requests);
 
-decide(Database, Slot_out, [_ | Decisions], All_decisions, Proposals, Requests) ->
+decide(Database, Slot_out, [_ | Decisions], All_decisions,
+  Proposals, Requests) ->
   decide(Database, Slot_out, Decisions, All_decisions, Proposals, Requests).
 
 % PERFORM operation on database if action has not already executed
@@ -109,7 +115,7 @@ get_slot_command(Slot, [_ | Proposals]) -> get_slot_command(Slot, Proposals).
 
 % Check if a command already has been executed
 has_been_executed([], _, _) -> false;
-has_been_executed([ {Slot, Command_executed} | Decisions ], Slot_out, Command) ->
+has_been_executed([ {Slot, Command_executed} | Decisions ], Slot_out, Command)->
 
   if
     (Slot < Slot_out) and (Command_executed == Command) ->
